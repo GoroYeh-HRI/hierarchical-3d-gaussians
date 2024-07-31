@@ -9,14 +9,17 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
-import numpy as np
 import argparse
-import cv2
-from joblib import delayed, Parallel
+import json
 import os
 import random
+
+import cv2
+import numpy as np
+from joblib import Parallel, delayed
+
 from read_write_model import *
-import json
+
 
 def get_nb_pts(image_metas):
     n_pts = 0
@@ -61,6 +64,7 @@ if __name__ == '__main__':
 
     xyzs = np.zeros([n_pts, 3], np.float32)
     errors = np.zeros([n_pts], np.float32) + 9e9
+    valids = np.zeros([n_pts], np.int64)
     indices = np.zeros([n_pts], np.int64)
     n_images = np.zeros([n_pts], np.int64)
     colors = np.zeros([n_pts, 3], np.float32)
@@ -70,13 +74,14 @@ if __name__ == '__main__':
         xyzs[idx] = points3d[key].xyz
         indices[idx] = points3d[key].id
         errors[idx] = points3d[key].error
+        valids[idx] = points3d[key].valid
         colors[idx] = points3d[key].rgb
         n_images[idx] = len(points3d[key].image_ids)
         idx +=1
 
     mask = errors < 1e1
     # mask *= n_images > 3
-    xyzsC, colorsC, errorsC, indicesC, n_imagesC = xyzs[mask], colors[mask], errors[mask], indices[mask], n_images[mask]
+    xyzsC, colorsC, errorsC, validsC, indicesC, n_imagesC = xyzs[mask], colors[mask], errors[mask], valids[mask], indices[mask], n_images[mask]
 
     points3d_ordered = np.zeros([indicesC.max()+1, 3])
     points3d_ordered[indicesC] = xyzsC
@@ -151,7 +156,7 @@ if __name__ == '__main__':
         new_colors = colorsC[mask]
         new_indices = indicesC[mask]
         new_errors = errorsC[mask]
-
+        new_valids = validsC[mask]
         new_colors = np.clip(new_colors, 0, 255).astype(np.uint8)
 
         valid_cam = np.all(cam_centers < corner_max, axis=-1) * np.all(cam_centers > corner_min, axis=-1)
@@ -231,6 +236,7 @@ if __name__ == '__main__':
                         xyz= new_xyzs[idx],
                         rgb=new_colors[idx],
                         error=new_errors[idx],
+                        valid=new_valids[idx],
                         image_ids=np.array([]),
                         point2D_idxs=np.array([])
                     )

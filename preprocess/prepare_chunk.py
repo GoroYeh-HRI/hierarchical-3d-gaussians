@@ -9,10 +9,14 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
-import os, sys, shutil
-import subprocess
 import argparse
-import time, platform
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import time
+
 from read_write_model import write_points3D_binary
 
 if __name__ == '__main__':
@@ -71,6 +75,7 @@ if __name__ == '__main__':
         print(f"Error executing image_undistorter: {e}")
         sys.exit(1)
 
+    
     print("extracting features...")
     colmap_feature_extractor_args = [
         colmap_exe, "feature_extractor",
@@ -111,6 +116,7 @@ if __name__ == '__main__':
 
     if args.skip_bundle_adjustment:
         subprocess.run([colmap_exe, "point_triangulator",
+            "--rig_config_path","/home/v0392580/RDX_DATA_01/SfM/submaps-3/rig_cam_config.json",
             "--Mapper.ba_global_max_num_iterations", "5",
             "--Mapper.ba_global_max_refinements", "1", 
             "--database_path", f"{bundle_adj_chunk}/database.db",
@@ -121,6 +127,7 @@ if __name__ == '__main__':
     else:
         colmap_point_triangulator_args = [
             colmap_exe, "point_triangulator",
+            "rig_config_path","/home/v0392580/RDX_DATA_01/SfM/submaps-3/rig_cam_config.json",            
             "--Mapper.ba_global_function_tolerance", "0.000001",
             "--Mapper.ba_global_max_num_iterations", "30",
             "--Mapper.ba_global_max_refinements", "3",

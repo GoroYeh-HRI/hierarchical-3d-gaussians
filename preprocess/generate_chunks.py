@@ -9,10 +9,13 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
-import os, sys
-import subprocess
 import argparse
-import time, platform
+import os
+import platform
+import subprocess
+import sys
+import time
+
 
 def submit_job(slurm_args):
     """Submit a job using sbatch and return the job ID."""    

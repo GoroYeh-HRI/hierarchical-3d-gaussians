@@ -9,13 +9,16 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+import argparse
+import os
+import time
+
 import numpy as np
-import argparse
-from read_write_model import *
 import torch
-import argparse
-import os, time
 from scipy import spatial
+
+from read_write_model import *
+
 
 def fit_plane_least_squares(points):
     # Augment the point cloud with a column of ones
@@ -161,6 +164,7 @@ if __name__ == '__main__':
             xyz=rotated,
             rgb=point3d_in.rgb,
             error=point3d_in.error,
+            valid=point3d_in.valid,
             image_ids=point3d_in.image_ids,
             point2D_idxs=point3d_in.point2D_idxs,
         )

@@ -9,11 +9,16 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
-import os, sys, shutil
-import subprocess
 import argparse
-from read_write_model import read_images_binary,write_images_binary, Image
-import time, platform
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import time
+
+from read_write_model import Image, read_images_binary, write_images_binary
+
 
 def replace_images_by_masks(images_file, out_file):
     """Replace images.jpg to images.png in the colmap images.bin to process masks the same way as images."""
@@ -117,16 +122,16 @@ if __name__ == '__main__':
     ## Generate sfm pointcloud
     print("generating sfm point cloud...")
     colmap_hierarchical_mapper_args = [
-        colmap_exe, "hierarchical_mapper",
+        colmap_exe, "mapper",
         "--database_path", f"{args.project_dir}/camera_calibration/unrectified/database.db",
         "--image_path", f"{args.images_dir}",
         "--output_path", f"{args.project_dir}/camera_calibration/unrectified/sparse",
-        "--Mapper.ba_global_function_tolerance", "0.000001" 
+        "--Mapper.ba_global_function_tolerance", "0.000001"
         ]
     try:
         subprocess.run(colmap_hierarchical_mapper_args, check=True)
     except subprocess.CalledProcessError as e:
-        print(f"Error executing colmap hierarchical_mapper: {e}")
+        print(f"Error executing colmap mapper: {e}")
         sys.exit(1)
 
     ## Simplify images so that everything takes less time (reading colmap usually takes forever)

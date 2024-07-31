@@ -28,12 +28,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 
-import os
-import collections
-import numpy as np
-import struct
 import argparse
+import collections
+import os
+import struct
 
+import numpy as np
 
 CameraModel = collections.namedtuple(
     "CameraModel", ["model_id", "model_name", "num_params"]
@@ -45,8 +45,8 @@ BaseImage = collections.namedtuple(
     "Image", ["id", "qvec", "tvec", "camera_id", "name", "xys", "point3D_ids"]
 )
 Point3D = collections.namedtuple(
-    "Point3D", ["id", "xyz", "rgb", "error", "image_ids", "point2D_idxs"]
-)
+    "Point3D", ["id", "xyz", "rgb", "error", "valid", "image_ids", "point2D_idxs"])
+
 
 
 class Image(BaseImage):
@@ -356,7 +356,7 @@ def write_images_binary(images, path_to_model_file):
 
 def read_points3D_text(path):
     """
-    see: src/colmap/scene/reconstruction.cc
+    see: src/base/reconstruction.cc
         void Reconstruction::ReadPoints3DText(const std::string& path)
         void Reconstruction::WritePoints3DText(const std::string& path)
     """
@@ -373,22 +373,18 @@ def read_points3D_text(path):
                 xyz = np.array(tuple(map(float, elems[1:4])))
                 rgb = np.array(tuple(map(int, elems[4:7])))
                 error = float(elems[7])
+                valid = bool(elems[8])
                 image_ids = np.array(tuple(map(int, elems[8::2])))
                 point2D_idxs = np.array(tuple(map(int, elems[9::2])))
-                points3D[point3D_id] = Point3D(
-                    id=point3D_id,
-                    xyz=xyz,
-                    rgb=rgb,
-                    error=error,
-                    image_ids=image_ids,
-                    point2D_idxs=point2D_idxs,
-                )
+                points3D[point3D_id] = Point3D(id=point3D_id, xyz=xyz, rgb=rgb,
+                                               error=error, valid=valid, image_ids=image_ids,
+                                               point2D_idxs=point2D_idxs)
     return points3D
 
 
 def read_points3D_binary(path_to_model_file):
     """
-    see: src/colmap/scene/reconstruction.cc
+    see: src/base/reconstruction.cc
         void Reconstruction::ReadPoints3DBinary(const std::string& path)
         void Reconstruction::WritePoints3DBinary(const std::string& path)
     """
@@ -397,57 +393,44 @@ def read_points3D_binary(path_to_model_file):
         num_points = read_next_bytes(fid, 8, "Q")[0]
         for _ in range(num_points):
             binary_point_line_properties = read_next_bytes(
-                fid, num_bytes=43, format_char_sequence="QdddBBBd"
-            )
+                fid, num_bytes=44, format_char_sequence="QdddBBBd?")
             point3D_id = binary_point_line_properties[0]
             xyz = np.array(binary_point_line_properties[1:4])
             rgb = np.array(binary_point_line_properties[4:7])
             error = np.array(binary_point_line_properties[7])
+            valid = np.array(binary_point_line_properties[8])
             track_length = read_next_bytes(
-                fid, num_bytes=8, format_char_sequence="Q"
-            )[0]
+                fid, num_bytes=8, format_char_sequence="Q")[0]
             track_elems = read_next_bytes(
-                fid,
-                num_bytes=8 * track_length,
-                format_char_sequence="ii" * track_length,
-            )
+                fid, num_bytes=8*track_length,
+                format_char_sequence="ii"*track_length)
             image_ids = np.array(tuple(map(int, track_elems[0::2])))
             point2D_idxs = np.array(tuple(map(int, track_elems[1::2])))
             points3D[point3D_id] = Point3D(
-                id=point3D_id,
-                xyz=xyz,
-                rgb=rgb,
-                error=error,
-                image_ids=image_ids,
-                point2D_idxs=point2D_idxs,
-            )
+                id=point3D_id, xyz=xyz, rgb=rgb,
+                error=error, valid=valid, image_ids=image_ids,
+                point2D_idxs=point2D_idxs)
     return points3D
 
 
 def write_points3D_text(points3D, path):
     """
-    see: src/colmap/scene/reconstruction.cc
+    see: src/base/reconstruction.cc
         void Reconstruction::ReadPoints3DText(const std::string& path)
         void Reconstruction::WritePoints3DText(const std::string& path)
     """
     if len(points3D) == 0:
         mean_track_length = 0
     else:
-        mean_track_length = sum(
-            (len(pt.image_ids) for _, pt in points3D.items())
-        ) / len(points3D)
-    HEADER = (
-        "# 3D point list with one line of data per point:\n"
-        + "#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n"
-        + "# Number of points: {}, mean track length: {}\n".format(
-            len(points3D), mean_track_length
-        )
-    )
+        mean_track_length = sum((len(pt.image_ids) for _, pt in points3D.items()))/len(points3D)
+    HEADER = "# 3D point list with one line of data per point:\n" + \
+             "#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, VALID, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n" + \
+             "# Number of points: {}, mean track length: {}\n".format(len(points3D), mean_track_length)
 
     with open(path, "w") as fid:
         fid.write(HEADER)
         for _, pt in points3D.items():
-            point_header = [pt.id, *pt.xyz, *pt.rgb, pt.error]
+            point_header = [pt.id, *pt.xyz, *pt.rgb, pt.error, pt.valid]
             fid.write(" ".join(map(str, point_header)) + " ")
             track_strings = []
             for image_id, point2D in zip(pt.image_ids, pt.point2D_idxs):
@@ -457,7 +440,7 @@ def write_points3D_text(points3D, path):
 
 def write_points3D_binary(points3D, path_to_model_file):
     """
-    see: src/colmap/scene/reconstruction.cc
+    see: src/base/reconstruction.cc
         void Reconstruction::ReadPoints3DBinary(const std::string& path)
         void Reconstruction::WritePoints3DBinary(const std::string& path)
     """
@@ -468,6 +451,7 @@ def write_points3D_binary(points3D, path_to_model_file):
             write_next_bytes(fid, pt.xyz.tolist(), "ddd")
             write_next_bytes(fid, pt.rgb.tolist(), "BBB")
             write_next_bytes(fid, pt.error, "d")
+            write_next_bytes(fid, pt.valid, "?")
             track_length = pt.image_ids.shape[0]
             write_next_bytes(fid, track_length, "Q")
             for image_id, point2D_id in zip(pt.image_ids, pt.point2D_idxs):
